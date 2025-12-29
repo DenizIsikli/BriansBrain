@@ -67,9 +67,8 @@ int main() {
 
     while(running) {
         SDL_Event event;
-         while(SDL_PollEvent(&event)) {
+        while(SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) running = false;
-
 
             if (event.type == SDL_KEYDOWN && event.key.keysym.sym == SDLK_r) {
                 resetGrid(grid);
