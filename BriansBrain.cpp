@@ -1,11 +1,14 @@
 #include <bits/stdc++.h>
 #include <SDL2/SDL.h>
+#include <unistd.h>
 
 #define CELL_COUNT 200
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
 #define GRID_W 200
 #define GRID_H 150
+#define FPS 60
+#define RECORD_SECONDS 10
 
 struct Cell {
     int state; // 0: off, 1: on, 2: dying
@@ -45,7 +48,7 @@ int countNeighbors(const std::vector<std::vector<Cell>> &grid, int y, int x) {
     return count;
 }
 
-int main() {
+void BriansBrain() {
     SDL_Init(SDL_INIT_VIDEO);
 
     SDL_Window *window = SDL_CreateWindow(
@@ -57,9 +60,7 @@ int main() {
         SDL_WINDOW_SHOWN
     );
 
-    SDL_SetWindowResizable(window, SDL_FALSE);
     SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
-    SDL_RenderPresent(renderer);
 
     SpawnCells(grid);
 
@@ -106,7 +107,85 @@ int main() {
         grid = nextGrid;
 
         SDL_RenderPresent(renderer);
-        SDL_Delay(16); // Roughly 60 FPS
+        SDL_Delay(1);
     }
+}
 
+void BriansBrainFfmpeg() {
+    SDL_Init(SDL_INIT_VIDEO);
+
+    SDL_Window *window = SDL_CreateWindow(
+        "Random Walk Visualization",
+        SDL_WINDOWPOS_UNDEFINED,
+        SDL_WINDOWPOS_UNDEFINED,
+        WINDOW_WIDTH,
+        WINDOW_HEIGHT,
+        SDL_WINDOW_SHOWN
+    );
+
+    SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+
+    SpawnCells(grid);
+
+    std::vector<uint8_t> pixels(WINDOW_WIDTH * WINDOW_HEIGHT * 4);
+
+    const int total_frames = FPS * RECORD_SECONDS;
+    for (int frame = 0; frame < total_frames; ++frame) {
+        SDL_Event event;
+        while(SDL_PollEvent(&event)) {
+            if (event.type == SDL_QUIT) return;
+        }
+
+        for(int y=0;y<GRID_H;++y){
+            for(int x=0;x<GRID_W;++x){
+                nextGrid[y][x].state = 0;
+            }
+        }
+
+        SDL_SetRenderDrawColor(renderer, 20, 20, 20, 255);
+        SDL_RenderClear(renderer);
+
+        for(int y=0;y<GRID_H;++y) {
+            for(int x=0;x<GRID_W;++x) {
+                int onNeighbors = countNeighbors(grid, y, x);
+                if(grid[y][x].state==0&&onNeighbors==2)nextGrid[y][x].state=1;
+                else if(grid[y][x].state==1)nextGrid[y][x].state=2;
+                else if(grid[y][x].state==2)nextGrid[y][x].state=0;
+
+                SDL_Rect cellRect = {x * (WINDOW_WIDTH / GRID_W), y * (WINDOW_HEIGHT / GRID_H), (WINDOW_WIDTH / GRID_W), (WINDOW_HEIGHT / GRID_H)};
+                if(grid[y][x].state == 0) {
+                    SDL_SetRenderDrawColor(renderer, 20, 20, 20, 255);
+                } else if(grid[y][x].state == 1) {
+                    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+                } else if(grid[y][x].state == 2) {
+                    SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+                }
+                SDL_RenderFillRect(renderer, &cellRect);
+
+            }
+        }
+
+        grid = nextGrid;
+        SDL_RenderPresent(renderer);
+
+        SDL_RenderReadPixels(
+            renderer,
+            nullptr,
+            SDL_PIXELFORMAT_RGBA32,
+            pixels.data(),
+            WINDOW_WIDTH * 4
+        );
+
+        write(STDOUT_FILENO, pixels.data(), pixels.size());
+        SDL_Delay(1000 / FPS);
+    }
+}
+
+int main(int argc, char** argv) {
+    if (argc > 1 && std::string(argv[1]) == "ffmpeg") {
+        BriansBrainFfmpeg();
+    } else {
+        BriansBrain();
+    }
+    return 0;
 }
